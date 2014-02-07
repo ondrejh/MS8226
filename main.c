@@ -1,10 +1,9 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
+#include <time.h>
 #include <inttypes.h>
 #include "ms8226dec.h"
-
 
 #define MAX_PORTNAME_LENGTH 31
 #define MAX_BUFFER_LENGTH 31
@@ -25,15 +24,24 @@ int serial_getchar(HANDLE serial,char *c)
     return 0;
 }
 
-int main()
+int main(int argc, char **argv)
 {
-    // serial port
+    /// serial port
     HANDLE hSerial;
-    char PortName[MAX_PORTNAME_LENGTH+1];
+    char PortName[MAX_PORTNAME_LENGTH+1] = "COM1";
     DCB dcbSerialParams;
     COMMTIMEOUTS timeouts;
+    float max_duration_time = -1;
 
-    strcpy(PortName,"COM3");
+    /// use args
+    if (argc>1) strcpy(PortName,argv[1]);
+    else
+    {
+        printf("Usage: %s <port name>\n",argv[0]);
+        max_duration_time=3;
+    }
+
+    if (argc>2) sscanf(argv[2],"%f",&max_duration_time);
 
     /// open port
     hSerial = CreateFile(PortName,GENERIC_READ | GENERIC_WRITE,0,0,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,0);
@@ -81,6 +89,8 @@ int main()
         return -1;
     }
 
+    clock_t start_time = clock();
+
     char str[256] = "";
     for (;;)
     {
@@ -88,9 +98,18 @@ int main()
         if (serial_getchar(hSerial,&chr))
         {
             //printf("0x%02X\n",(uint8_t)(chr));
-            if (convert_ms8226_value(chr,str))
+            if (ms8226_read(chr))
             {
+                ms8226_convert(str);
                 printf("%s\n",str);
+                break;
+            }
+        }
+        if (max_duration_time>0)
+        {
+            if ((((float)(clock()-start_time))/CLOCKS_PER_SEC)>max_duration_time)
+            {
+                printf("Timeout exit ...\n");
                 break;
             }
         }
